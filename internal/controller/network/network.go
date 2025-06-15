@@ -43,8 +43,6 @@ import (
 	"github.com/crossplane/provider-vkcloud/apis/networking/v1alpha1"
 	apisv1alpha1 "github.com/crossplane/provider-vkcloud/apis/v1alpha1"
 	"github.com/crossplane/provider-vkcloud/internal/features"
-
-	"github.com/AntonGlinisty/crossplane-vk-cloud/internal/controller/authorization"
 )
 
 const (
@@ -62,14 +60,64 @@ type VkCloudService struct {
 	Client  *http.Client
 }
 
+type Credentials struct {
+	Username   string `json:"username"`
+	Password   string `json:"password"`
+	Domain     string `json:"domain"`
+	ProjectID  string `json:"projectId"`
+	AuthURL    string `json:"authUrl"`
+	NeutronURL string `json:"neutronUrl"`
+}
+
+func getKeystoneToken(c Credentials) (string, error) {
+	requestBodyJson := map[string]interface{}{
+		"auth": map[string]interface{}{
+			"identity": map[string]interface{}{
+				"methods": []string{"password"},
+				"password": map[string]interface{}{
+					"user": map[string]interface{}{
+						"name":     c.Username,
+						"domain":   map[string]string{"name": c.Domain},
+						"password": c.Password,
+					},
+				},
+			},
+			"scope": map[string]interface{}{
+				"project": map[string]interface{}{
+					"id": c.ProjectID,
+				},
+			},
+		},
+	}
+
+	requestBody, _ := json.Marshal(requestBodyJson)
+	request, err := http.NewRequest(
+		"POST",
+		c.AuthURL+"/v3/auth/tokens",
+		bytes.NewReader(requestBody),
+	)
+	if err != nil {
+		return "", err
+	}
+
+	request.Header.Set("Content-Type", "application/json")
+
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return "", err
+	}
+
+	return response.Header.Get("X-Subject-Token"), nil
+}
+
 var (
 	newVkCloudService = func(creds []byte) (*VkCloudService, error) {
-		var c authorization.Credentials
+		var c Credentials
 		if err := json.Unmarshal(creds, &c); err != nil {
 			return nil, err
 		}
 
-		token, err := authorization.getKeystoneToken(c)
+		token, err := getKeystoneToken(c)
 		if err != nil {
 			return nil, err
 		}
