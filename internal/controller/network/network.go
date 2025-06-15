@@ -17,10 +17,15 @@ limitations under the License.
 package network
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/feature"
+	"github.com/crossplane/crossplane-runtime/pkg/meta"
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -41,7 +46,7 @@ import (
 )
 
 const (
-	errNotNetwork    = "managed resource is not a Network custom resource"
+	errNotNetwork   = "managed resource is not a Network custom resource"
 	errTrackPCUsage = "cannot track ProviderConfig usage"
 	errGetPC        = "cannot get ProviderConfig"
 	errGetCreds     = "cannot get credentials"
@@ -49,11 +54,80 @@ const (
 	errNewClient = "cannot create new Service"
 )
 
-// A NoOpService does nothing.
-type NoOpService struct{}
+type VkCloudService struct {
+	Token   string
+	BaseURL string
+	Client  *http.Client
+}
+
+type Credentials struct {
+	Username   string `json:"username"`
+	Password   string `json:"password"`
+	Domain     string `json:"domain"`
+	ProjectID  string `json:"projectId"`
+	AuthURL    string `json:"authUrl"`
+	NeutronURL string `json:"neutronUrl"`
+}
+
+func getKeystoneToken(c Credentials) (string, error) {
+	requestBodyJson := map[string]interface{}{
+		"auth": map[string]interface{}{
+			"identity": map[string]interface{}{
+				"methods": []string{"password"},
+				"password": map[string]interface{}{
+					"user": map[string]interface{}{
+						"name":     c.Username,
+						"domain":   map[string]string{"name": c.Domain},
+						"password": c.Password,
+					},
+				},
+			},
+			"scope": map[string]interface{}{
+				"project": map[string]interface{}{
+					"id": c.ProjectID,
+				},
+			},
+		},
+	}
+
+	requestBody, _ := json.Marshal(requestBodyJson)
+	request, err := http.NewRequest(
+		"POST",
+		c.AuthURL+"/v3/auth/tokens",
+		bytes.NewReader(requestBody),
+	)
+	if err != nil {
+		return "", err
+	}
+
+	request.Header.Set("Content-Type", "application/json")
+
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return "", err
+	}
+
+	return response.Header.Get("X-Subject-Token"), nil
+}
 
 var (
-	newNoOpService = func(_ []byte) (interface{}, error) { return &NoOpService{}, nil }
+	newVkCloudService = func(creds []byte) (*VkCloudService, error) {
+		var c Credentials
+		if err := json.Unmarshal(creds, &c); err != nil {
+			return nil, err
+		}
+
+		token, err := getKeystoneToken(c)
+		if err != nil {
+			return nil, err
+		}
+
+		return &VkCloudService{
+			Token:   token,
+			BaseURL: c.NeutronURL,
+			Client:  &http.Client{Timeout: 10 * time.Second},
+		}, nil
+	}
 )
 
 // Setup adds a controller that reconciles Network managed resources.
@@ -69,7 +143,7 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 		managed.WithExternalConnecter(&connector{
 			kube:         mgr.GetClient(),
 			usage:        resource.NewProviderConfigUsageTracker(mgr.GetClient(), &apisv1alpha1.ProviderConfigUsage{}),
-			newServiceFn: newNoOpService}),
+			newServiceFn: newVkCloudService}),
 		managed.WithLogger(o.Logger.WithValues("controller", name)),
 		managed.WithPollInterval(o.PollInterval),
 		managed.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
@@ -109,7 +183,7 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 type connector struct {
 	kube         client.Client
 	usage        resource.Tracker
-	newServiceFn func(creds []byte) (interface{}, error)
+	newServiceFn func(creds []byte) (*VkCloudService, error)
 }
 
 // Connect typically produces an ExternalClient by:
@@ -151,7 +225,7 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 type external struct {
 	// A 'client' used to connect to the external resource API. In practice this
 	// would be something like an AWS SDK client.
-	service interface{}
+	service *VkCloudService
 }
 
 func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
@@ -160,23 +234,37 @@ func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		return managed.ExternalObservation{}, errors.New(errNotNetwork)
 	}
 
-	// These fmt statements should be removed in the real implementation.
-	fmt.Printf("Observing: %+v", cr)
+	networkID := meta.GetExternalName(cr)
+	if networkID == "" {
+		return managed.ExternalObservation{ResourceExists: false}, nil
+	}
+
+	request, err := http.NewRequestWithContext(
+		ctx, "GET",
+		c.service.BaseURL+"/v2.0/networks/"+networkID,
+		nil,
+	)
+	if err != nil {
+		return managed.ExternalObservation{}, err
+	}
+
+	request.Header.Set("X-Auth-Token", c.service.Token)
+
+	response, err := c.service.Client.Do(request)
+	if err != nil {
+		return managed.ExternalObservation{}, err
+	}
+
+	defer response.Body.Close()
+
+	if response.StatusCode == 404 {
+		return managed.ExternalObservation{ResourceExists: false}, nil
+	}
 
 	return managed.ExternalObservation{
-		// Return false when the external resource does not exist. This lets
-		// the managed resource reconciler know that it needs to call Create to
-		// (re)create the resource, or that it has successfully been deleted.
-		ResourceExists: true,
-
-		// Return false when the external resource exists, but it not up to date
-		// with the desired managed resource state. This lets the managed
-		// resource reconciler know that it needs to call Update.
-		ResourceUpToDate: true,
-
-		// Return any details that may be required to connect to the external
-		// resource. These will be stored as the connection secret.
-		ConnectionDetails: managed.ConnectionDetails{},
+		ResourceExists:          true,
+		ResourceUpToDate:        true,
+		ResourceLateInitialized: false,
 	}, nil
 }
 
@@ -186,13 +274,44 @@ func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 		return managed.ExternalCreation{}, errors.New(errNotNetwork)
 	}
 
-	fmt.Printf("Creating: %+v", cr)
+	requestBodyJson := map[string]interface{}{
+		"network": map[string]interface{}{
+			"name": cr.Spec.ForProvider.Name,
+		},
+	}
 
-	return managed.ExternalCreation{
-		// Optionally return any details that may be required to connect to the
-		// external resource. These will be stored as the connection secret.
-		ConnectionDetails: managed.ConnectionDetails{},
-	}, nil
+	requestBody, _ := json.Marshal(requestBodyJson)
+	request, err := http.NewRequestWithContext(
+		ctx,
+		"POST",
+		c.service.BaseURL+"/v2.0/networks",
+		bytes.NewReader(requestBody),
+	)
+	if err != nil {
+		return managed.ExternalCreation{}, err
+	}
+
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-Auth-Token", c.service.Token)
+
+	response, err := c.service.Client.Do(request)
+	if err != nil {
+		return managed.ExternalCreation{}, err
+	}
+
+	defer response.Body.Close()
+
+	var result struct {
+		Network struct {
+			ID string `json:"id"`
+		} `json:"network"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
+		return managed.ExternalCreation{}, err
+	}
+
+	meta.SetExternalName(cr, result.Network.ID)
+	return managed.ExternalCreation{}, nil
 }
 
 func (c *external) Update(ctx context.Context, mg resource.Managed) (managed.ExternalUpdate, error) {
@@ -216,8 +335,24 @@ func (c *external) Delete(ctx context.Context, mg resource.Managed) (managed.Ext
 		return managed.ExternalDelete{}, errors.New(errNotNetwork)
 	}
 
-	fmt.Printf("Deleting: %+v", cr)
+	networkID := meta.GetExternalName(cr)
+	if networkID == "" {
+		return managed.ExternalDelete{}, nil
+	}
 
+	request, err := http.NewRequestWithContext(
+		ctx,
+		"DELETE",
+		c.service.BaseURL+"/v2.0/networks/"+networkID,
+		nil,
+	)
+	if err != nil {
+		return managed.ExternalDelete{}, err
+	}
+
+	request.Header.Set("X-Auth-Token", c.service.Token)
+
+	c.service.Client.Do(request)
 	return managed.ExternalDelete{}, nil
 }
 

@@ -1,0 +1,9 @@
+apiVersion: networking.vkcloud.crossplane.io/v1alpha1
+kind: Network
+metadata:
+  name: my-vpc
+spec:
+  forProvider:
+    name: my-vpc
+  providerConfigRef:
+    name: default
