@@ -1,0 +1,23 @@
+apiVersion: networking.vkcloud.crossplane.io/v1alpha1
+kind: Subnet
+metadata:
+  name: my-frontend-subnet
+spec:
+  forProvider:
+    name: my-frontend-subnet
+    networkId: 7291f75f-a6cc-46b5-92e8-4460da41b01f
+    cidr: 10.10.1.0/24
+  providerConfigRef:
+    name: default
+---
+apiVersion: networking.vkcloud.crossplane.io/v1alpha1
+kind: Subnet
+metadata:
+  name: my-backend-subnet
+spec:
+  forProvider:
+    name: my-backend-subnet
+    networkId: 7291f75f-a6cc-46b5-92e8-4460da41b01f
+    cidr: 10.10.2.0/24
+  providerConfigRef:
+    name: default

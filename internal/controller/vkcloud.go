@@ -22,6 +22,7 @@ import (
 
 	"github.com/crossplane/provider-vkcloud/internal/controller/config"
 	"github.com/crossplane/provider-vkcloud/internal/controller/network"
+	"github.com/crossplane/provider-vkcloud/internal/controller/subnet"
 )
 
 // Setup creates all VkCloud controllers with the supplied logger and adds them to
@@ -30,6 +31,7 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 	for _, setup := range []func(ctrl.Manager, controller.Options) error{
 		config.Setup,
 		network.Setup,
+		subnet.Setup,
 	} {
 		if err := setup(mgr, o); err != nil {
 			return err

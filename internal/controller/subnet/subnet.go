@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package network
+package subnet
 
 import (
 	"bytes"
@@ -43,12 +43,10 @@ import (
 	"github.com/crossplane/provider-vkcloud/apis/networking/v1alpha1"
 	apisv1alpha1 "github.com/crossplane/provider-vkcloud/apis/v1alpha1"
 	"github.com/crossplane/provider-vkcloud/internal/features"
-
-	"github.com/AntonGlinisty/crossplane-vk-cloud/internal/controller/authorization"
 )
 
 const (
-	errNotNetwork   = "managed resource is not a Network custom resource"
+	errNotSubnet    = "managed resource is not a Subnet custom resource"
 	errTrackPCUsage = "cannot track ProviderConfig usage"
 	errGetPC        = "cannot get ProviderConfig"
 	errGetCreds     = "cannot get credentials"
@@ -62,14 +60,64 @@ type VkCloudService struct {
 	Client  *http.Client
 }
 
+type Credentials struct {
+	Username   string `json:"username"`
+	Password   string `json:"password"`
+	Domain     string `json:"domain"`
+	ProjectID  string `json:"projectId"`
+	AuthURL    string `json:"authUrl"`
+	NeutronURL string `json:"neutronUrl"`
+}
+
+func getKeystoneToken(c Credentials) (string, error) {
+	requestBodyJson := map[string]interface{}{
+		"auth": map[string]interface{}{
+			"identity": map[string]interface{}{
+				"methods": []string{"password"},
+				"password": map[string]interface{}{
+					"user": map[string]interface{}{
+						"name":     c.Username,
+						"domain":   map[string]string{"name": c.Domain},
+						"password": c.Password,
+					},
+				},
+			},
+			"scope": map[string]interface{}{
+				"project": map[string]interface{}{
+					"id": c.ProjectID,
+				},
+			},
+		},
+	}
+
+	requestBody, _ := json.Marshal(requestBodyJson)
+	request, err := http.NewRequest(
+		"POST",
+		c.AuthURL+"/v3/auth/tokens",
+		bytes.NewReader(requestBody),
+	)
+	if err != nil {
+		return "", err
+	}
+
+	request.Header.Set("Content-Type", "application/json")
+
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return "", err
+	}
+
+	return response.Header.Get("X-Subject-Token"), nil
+}
+
 var (
 	newVkCloudService = func(creds []byte) (*VkCloudService, error) {
-		var c authorization.Credentials
+		var c Credentials
 		if err := json.Unmarshal(creds, &c); err != nil {
 			return nil, err
 		}
 
-		token, err := authorization.getKeystoneToken(c)
+		token, err := getKeystoneToken(c)
 		if err != nil {
 			return nil, err
 		}
@@ -82,9 +130,9 @@ var (
 	}
 )
 
-// Setup adds a controller that reconciles Network managed resources.
+// Setup adds a controller that reconciles Subnet managed resources.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
-	name := managed.ControllerName(v1alpha1.NetworkGroupKind)
+	name := managed.ControllerName(v1alpha1.SubnetGroupKind)
 
 	cps := []managed.ConnectionPublisher{managed.NewAPISecretPublisher(mgr.GetClient(), mgr.GetScheme())}
 	if o.Features.Enabled(features.EnableAlphaExternalSecretStores) {
@@ -113,20 +161,20 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 
 	if o.MetricOptions != nil && o.MetricOptions.MRStateMetrics != nil {
 		stateMetricsRecorder := statemetrics.NewMRStateRecorder(
-			mgr.GetClient(), o.Logger, o.MetricOptions.MRStateMetrics, &v1alpha1.NetworkList{}, o.MetricOptions.PollStateMetricInterval,
+			mgr.GetClient(), o.Logger, o.MetricOptions.MRStateMetrics, &v1alpha1.SubnetList{}, o.MetricOptions.PollStateMetricInterval,
 		)
 		if err := mgr.Add(stateMetricsRecorder); err != nil {
-			return errors.Wrap(err, "cannot register MR state metrics recorder for kind v1alpha1.NetworkList")
+			return errors.Wrap(err, "cannot register MR state metrics recorder for kind v1alpha1.SubnetList")
 		}
 	}
 
-	r := managed.NewReconciler(mgr, resource.ManagedKind(v1alpha1.NetworkGroupVersionKind), opts...)
+	r := managed.NewReconciler(mgr, resource.ManagedKind(v1alpha1.SubnetGroupVersionKind), opts...)
 
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(name).
 		WithOptions(o.ForControllerRuntime()).
 		WithEventFilter(resource.DesiredStateChanged()).
-		For(&v1alpha1.Network{}).
+		For(&v1alpha1.Subnet{}).
 		Complete(ratelimiter.NewReconciler(name, r, o.GlobalRateLimiter))
 }
 
@@ -144,9 +192,9 @@ type connector struct {
 // 3. Getting the credentials specified by the ProviderConfig.
 // 4. Using the credentials to form a client.
 func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.ExternalClient, error) {
-	cr, ok := mg.(*v1alpha1.Network)
+	cr, ok := mg.(*v1alpha1.Subnet)
 	if !ok {
-		return nil, errors.New(errNotNetwork)
+		return nil, errors.New(errNotSubnet)
 	}
 
 	if err := c.usage.Track(ctx, mg); err != nil {
@@ -181,19 +229,20 @@ type external struct {
 }
 
 func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
-	cr, ok := mg.(*v1alpha1.Network)
+	cr, ok := mg.(*v1alpha1.Subnet)
 	if !ok {
-		return managed.ExternalObservation{}, errors.New(errNotNetwork)
+		return managed.ExternalObservation{}, errors.New(errNotSubnet)
 	}
 
-	networkID := meta.GetExternalName(cr)
-	if networkID == "" {
+	subnetID := meta.GetExternalName(cr)
+	if subnetID == "" {
 		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
 
 	request, err := http.NewRequestWithContext(
-		ctx, "GET",
-		c.service.BaseURL+"/v2.0/networks/"+networkID,
+		ctx,
+		"GET",
+		c.service.BaseURL+"/v2.0/subnets/"+subnetID,
 		nil,
 	)
 	if err != nil {
@@ -219,14 +268,17 @@ func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 }
 
 func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.ExternalCreation, error) {
-	cr, ok := mg.(*v1alpha1.Network)
+	cr, ok := mg.(*v1alpha1.Subnet)
 	if !ok {
-		return managed.ExternalCreation{}, errors.New(errNotNetwork)
+		return managed.ExternalCreation{}, errors.New(errNotSubnet)
 	}
 
 	requestBodyJson := map[string]interface{}{
-		"network": map[string]interface{}{
-			"name": cr.Spec.ForProvider.Name,
+		"subnet": map[string]interface{}{
+			"name":       cr.Spec.ForProvider.Name,
+			"network_id": cr.Spec.ForProvider.NetworkId,
+			"cidr":       cr.Spec.ForProvider.Cidr,
+			"ip_version": 4,
 		},
 	}
 
@@ -234,7 +286,7 @@ func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 	request, err := http.NewRequestWithContext(
 		ctx,
 		"POST",
-		c.service.BaseURL+"/v2.0/networks",
+		c.service.BaseURL+"/v2.0/subnets",
 		bytes.NewReader(requestBody),
 	)
 	if err != nil {
@@ -252,22 +304,22 @@ func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 	defer response.Body.Close()
 
 	var result struct {
-		Network struct {
+		Subnet struct {
 			ID string `json:"id"`
-		} `json:"network"`
+		} `json:"subnet"`
 	}
 	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
 		return managed.ExternalCreation{}, err
 	}
 
-	meta.SetExternalName(cr, result.Network.ID)
+	meta.SetExternalName(cr, result.Subnet.ID)
 	return managed.ExternalCreation{}, nil
 }
 
 func (c *external) Update(ctx context.Context, mg resource.Managed) (managed.ExternalUpdate, error) {
-	cr, ok := mg.(*v1alpha1.Network)
+	cr, ok := mg.(*v1alpha1.Subnet)
 	if !ok {
-		return managed.ExternalUpdate{}, errors.New(errNotNetwork)
+		return managed.ExternalUpdate{}, errors.New(errNotSubnet)
 	}
 
 	fmt.Printf("Updating: %+v", cr)
@@ -280,9 +332,9 @@ func (c *external) Update(ctx context.Context, mg resource.Managed) (managed.Ext
 }
 
 func (c *external) Delete(ctx context.Context, mg resource.Managed) (managed.ExternalDelete, error) {
-	cr, ok := mg.(*v1alpha1.Network)
+	cr, ok := mg.(*v1alpha1.Subnet)
 	if !ok {
-		return managed.ExternalDelete{}, errors.New(errNotNetwork)
+		return managed.ExternalDelete{}, errors.New(errNotSubnet)
 	}
 
 	networkID := meta.GetExternalName(cr)
@@ -293,7 +345,7 @@ func (c *external) Delete(ctx context.Context, mg resource.Managed) (managed.Ext
 	request, err := http.NewRequestWithContext(
 		ctx,
 		"DELETE",
-		c.service.BaseURL+"/v2.0/networks/"+networkID,
+		c.service.BaseURL+"/v2.0/subnets/"+networkID,
 		nil,
 	)
 	if err != nil {
