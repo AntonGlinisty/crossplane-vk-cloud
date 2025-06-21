@@ -4,18 +4,18 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.5
-  name: subnets.networking.vkcloud.crossplane.io
+  name: instances.compute.vkcloud.crossplane.io
 spec:
-  group: networking.vkcloud.crossplane.io
+  group: compute.vkcloud.crossplane.io
   names:
     categories:
     - crossplane
     - managed
     - vkcloud
-    kind: Subnet
-    listKind: SubnetList
-    plural: subnets
-    singular: subnet
+    kind: Instance
+    listKind: InstanceList
+    plural: instances
+    singular: instance
   scope: Cluster
   versions:
   - additionalPrinterColumns:
@@ -34,7 +34,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: A Subnet is an example API type.
+        description: A Instance is an example API type.
         properties:
           apiVersion:
             description: |-
@@ -54,7 +54,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: A SubnetSpec defines the desired state of a Subnet.
+            description: A InstanceSpec defines the desired state of a Instance.
             properties:
               deletionPolicy:
                 default: Delete
@@ -71,21 +71,28 @@ spec:
                 - Delete
                 type: string
               forProvider:
-                description: SubnetParameters are the configurable fields of a Subnet.
+                description: InstanceParameters are the configurable fields of a Instance.
                 properties:
-                  cidr:
+                  flavorRef:
                     type: string
-                  enableDhcp:
-                    type: boolean
+                  imageRef:
+                    type: string
                   name:
                     type: string
-                  networkId:
-                    type: string
+                  networks:
+                    items:
+                      properties:
+                        uuid:
+                          type: string
+                      required:
+                      - uuid
+                      type: object
+                    type: array
                 required:
-                - cidr
-                - enableDhcp
+                - flavorRef
+                - imageRef
                 - name
-                - networkId
+                - networks
                 type: object
               managementPolicies:
                 default:
@@ -255,10 +262,10 @@ spec:
             - forProvider
             type: object
           status:
-            description: A SubnetStatus represents the observed state of a Subnet.
+            description: A InstanceStatus represents the observed state of a Instance.
             properties:
               atProvider:
-                description: SubnetObservation are the observable fields of a Subnet.
+                description: InstanceObservation are the observable fields of a Instance.
                 type: object
               conditions:
                 description: Conditions of the resource.

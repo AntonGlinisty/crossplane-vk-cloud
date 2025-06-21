@@ -20,6 +20,7 @@ package apis
 import (
 	"k8s.io/apimachinery/pkg/runtime"
 
+	computev1alpha1 "github.com/crossplane/provider-vkcloud/apis/compute/v1alpha1"
 	networkingv1alpha1 "github.com/crossplane/provider-vkcloud/apis/networking/v1alpha1"
 	vkcloudv1alpha1 "github.com/crossplane/provider-vkcloud/apis/v1alpha1"
 )
@@ -29,6 +30,7 @@ func init() {
 	AddToSchemes = append(AddToSchemes,
 		vkcloudv1alpha1.SchemeBuilder.AddToScheme,
 		networkingv1alpha1.SchemeBuilder.AddToScheme,
+		computev1alpha1.SchemeBuilder.AddToScheme,
 	)
 }
 

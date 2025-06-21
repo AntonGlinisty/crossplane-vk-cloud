@@ -25,63 +25,67 @@ import (
 	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 )
 
-// SubnetParameters are the configurable fields of a Subnet.
-type SubnetParameters struct {
-	Name       string `json:"name"`
-	NetworkId  string `json:"networkId"`
-	Cidr       string `json:"cidr"`
-	EnableDhcp bool   `json:"enableDhcp"`
+// InstanceParameters are the configurable fields of a Instance.
+type InstanceParameters struct {
+	Name      string     `json:"name"`
+	FlavorRef string     `json:"flavorRef"`
+	ImageRef  string     `json:"imageRef"`
+	Networks  []Networks `json:"networks"`
 }
 
-// SubnetObservation are the observable fields of a Subnet.
-type SubnetObservation struct{}
+type Networks struct {
+	Uuid string `json:"uuid"`
+}
 
-// A SubnetSpec defines the desired state of a Subnet.
-type SubnetSpec struct {
+// InstanceObservation are the observable fields of a Instance.
+type InstanceObservation struct{}
+
+// A InstanceSpec defines the desired state of a Instance.
+type InstanceSpec struct {
 	xpv1.ResourceSpec `json:",inline"`
-	ForProvider       SubnetParameters `json:"forProvider"`
+	ForProvider       InstanceParameters `json:"forProvider"`
 }
 
-// A SubnetStatus represents the observed state of a Subnet.
-type SubnetStatus struct {
+// A InstanceStatus represents the observed state of a Instance.
+type InstanceStatus struct {
 	xpv1.ResourceStatus `json:",inline"`
-	AtProvider          SubnetObservation `json:"atProvider,omitempty"`
+	AtProvider          InstanceObservation `json:"atProvider,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// A Subnet is an example API type.
+// A Instance is an example API type.
 // +kubebuilder:printcolumn:name="READY",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="SYNCED",type="string",JSONPath=".status.conditions[?(@.type=='Synced')].status"
 // +kubebuilder:printcolumn:name="EXTERNAL-NAME",type="string",JSONPath=".metadata.annotations.crossplane\\.io/external-name"
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster,categories={crossplane,managed,vkcloud}
-type Subnet struct {
+type Instance struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   SubnetSpec   `json:"spec"`
-	Status SubnetStatus `json:"status,omitempty"`
+	Spec   InstanceSpec   `json:"spec"`
+	Status InstanceStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// SubnetList contains a list of Subnet
-type SubnetList struct {
+// InstanceList contains a list of Instance
+type InstanceList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Subnet `json:"items"`
+	Items           []Instance `json:"items"`
 }
 
-// Subnet type metadata.
+// Instance type metadata.
 var (
-	SubnetKind             = reflect.TypeOf(Subnet{}).Name()
-	SubnetGroupKind        = schema.GroupKind{Group: Group, Kind: SubnetKind}.String()
-	SubnetKindAPIVersion   = SubnetKind + "." + SchemeGroupVersion.String()
-	SubnetGroupVersionKind = SchemeGroupVersion.WithKind(SubnetKind)
+	InstanceKind             = reflect.TypeOf(Instance{}).Name()
+	InstanceGroupKind        = schema.GroupKind{Group: Group, Kind: InstanceKind}.String()
+	InstanceKindAPIVersion   = InstanceKind + "." + SchemeGroupVersion.String()
+	InstanceGroupVersionKind = SchemeGroupVersion.WithKind(InstanceKind)
 )
 
 func init() {
-	SchemeBuilder.Register(&Subnet{}, &SubnetList{})
+	SchemeBuilder.Register(&Instance{}, &InstanceList{})
 }

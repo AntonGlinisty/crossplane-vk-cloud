@@ -17,7 +17,8 @@ stringData:
       "domain": "users",
       "projectId": "9db77e367336474aad6fe589ca6729e3",
       "authUrl": "https://infra.mail.ru:35357",
-      "neutronUrl": "https://infra.mail.ru:9696"
+      "neutronUrl": "https://infra.mail.ru:9696",
+      "computeUrl": "https://infra.mail.ru:8774"
     }
 ---
 apiVersion: vkcloud.crossplane.io/v1alpha1

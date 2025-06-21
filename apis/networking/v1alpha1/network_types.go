@@ -31,9 +31,7 @@ type NetworkParameters struct {
 }
 
 // NetworkObservation are the observable fields of a Network.
-type NetworkObservation struct {
-	Name string `json:"name"`
-}
+type NetworkObservation struct{}
 
 // A NetworkSpec defines the desired state of a Network.
 type NetworkSpec struct {

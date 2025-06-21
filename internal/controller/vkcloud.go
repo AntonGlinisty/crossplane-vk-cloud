@@ -21,6 +21,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/crossplane/provider-vkcloud/internal/controller/config"
+	"github.com/crossplane/provider-vkcloud/internal/controller/instance"
 	"github.com/crossplane/provider-vkcloud/internal/controller/network"
 	"github.com/crossplane/provider-vkcloud/internal/controller/subnet"
 )
@@ -32,6 +33,7 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 		config.Setup,
 		network.Setup,
 		subnet.Setup,
+		instance.Setup,
 	} {
 		if err := setup(mgr, o); err != nil {
 			return err

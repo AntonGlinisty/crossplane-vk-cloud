@@ -5,8 +5,9 @@ metadata:
 spec:
   forProvider:
     name: my-frontend-subnet
-    networkId: 7291f75f-a6cc-46b5-92e8-4460da41b01f
+    networkId: 6112d71e-418b-424f-96b9-4a8854fd7cbf
     cidr: 10.10.1.0/24
+    enableDhcp: true
   providerConfigRef:
     name: default
 ---
@@ -17,7 +18,8 @@ metadata:
 spec:
   forProvider:
     name: my-backend-subnet
-    networkId: 7291f75f-a6cc-46b5-92e8-4460da41b01f
+    networkId: 6112d71e-418b-424f-96b9-4a8854fd7cbf
     cidr: 10.10.2.0/24
+    enableDhcp: false
   providerConfigRef:
     name: default

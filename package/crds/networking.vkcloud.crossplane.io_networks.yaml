@@ -250,11 +250,6 @@ spec:
             properties:
               atProvider:
                 description: NetworkObservation are the observable fields of a Network.
-                properties:
-                  name:
-                    type: string
-                required:
-                - name
                 type: object
               conditions:
                 description: Conditions of the resource.

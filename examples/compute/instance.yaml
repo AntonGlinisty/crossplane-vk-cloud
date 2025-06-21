@@ -1,0 +1,13 @@
+apiVersion: compute.vkcloud.crossplane.io/v1alpha1
+kind: Instance
+metadata:
+  name: my-frontend-vm
+spec:
+  forProvider:
+    name: my-frontend-vm
+    flavorRef: 25ae869c-be29-4840-8e12-99e046d2dbd4
+    imageRef: c1703b98-c903-436c-9de3-370af53a306f
+    networks:
+      - uuid: 6112d71e-418b-424f-96b9-4a8854fd7cbf
+  providerConfigRef:
+    name: default

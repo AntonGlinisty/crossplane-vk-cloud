@@ -61,12 +61,13 @@ type VkCloudService struct {
 }
 
 type Credentials struct {
-	Username   string `json:"username"`
-	Password   string `json:"password"`
-	Domain     string `json:"domain"`
-	ProjectID  string `json:"projectId"`
-	AuthURL    string `json:"authUrl"`
-	NeutronURL string `json:"neutronUrl"`
+	Username      string `json:"username"`
+	Password      string `json:"password"`
+	Domain        string `json:"domain"`
+	ProjectID     string `json:"projectId"`
+	AuthURL       string `json:"authUrl"`
+	NetworkingURL string `json:"neutronUrl"`
+	ComputeURL    string `json:"computeUrl"`
 }
 
 func getKeystoneToken(c Credentials) (string, error) {
@@ -124,7 +125,7 @@ var (
 
 		return &VkCloudService{
 			Token:   token,
-			BaseURL: c.NeutronURL,
+			BaseURL: c.NetworkingURL,
 			Client:  &http.Client{Timeout: 10 * time.Second},
 		}, nil
 	}
@@ -275,10 +276,11 @@ func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 
 	requestBodyJson := map[string]interface{}{
 		"subnet": map[string]interface{}{
-			"name":       cr.Spec.ForProvider.Name,
-			"network_id": cr.Spec.ForProvider.NetworkId,
-			"cidr":       cr.Spec.ForProvider.Cidr,
-			"ip_version": 4,
+			"name":        cr.Spec.ForProvider.Name,
+			"network_id":  cr.Spec.ForProvider.NetworkId,
+			"cidr":        cr.Spec.ForProvider.Cidr,
+			"enable_dhcp": cr.Spec.ForProvider.EnableDhcp,
+			"ip_version":  4,
 		},
 	}
 

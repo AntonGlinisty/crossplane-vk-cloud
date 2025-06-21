@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package network
+package instance
 
 import (
 	"bytes"
@@ -40,13 +40,13 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
 	"github.com/crossplane/crossplane-runtime/pkg/statemetrics"
 
-	"github.com/crossplane/provider-vkcloud/apis/networking/v1alpha1"
+	"github.com/crossplane/provider-vkcloud/apis/compute/v1alpha1"
 	apisv1alpha1 "github.com/crossplane/provider-vkcloud/apis/v1alpha1"
 	"github.com/crossplane/provider-vkcloud/internal/features"
 )
 
 const (
-	errNotNetwork   = "managed resource is not a Network custom resource"
+	errNotInstance  = "managed resource is not a Instance custom resource"
 	errTrackPCUsage = "cannot track ProviderConfig usage"
 	errGetPC        = "cannot get ProviderConfig"
 	errGetCreds     = "cannot get credentials"
@@ -125,15 +125,15 @@ var (
 
 		return &VkCloudService{
 			Token:   token,
-			BaseURL: c.NetworkingURL,
+			BaseURL: c.ComputeURL,
 			Client:  &http.Client{Timeout: 10 * time.Second},
 		}, nil
 	}
 )
 
-// Setup adds a controller that reconciles Network managed resources.
+// Setup adds a controller that reconciles Instance managed resources.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
-	name := managed.ControllerName(v1alpha1.NetworkGroupKind)
+	name := managed.ControllerName(v1alpha1.InstanceGroupKind)
 
 	cps := []managed.ConnectionPublisher{managed.NewAPISecretPublisher(mgr.GetClient(), mgr.GetScheme())}
 	if o.Features.Enabled(features.EnableAlphaExternalSecretStores) {
@@ -162,20 +162,20 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 
 	if o.MetricOptions != nil && o.MetricOptions.MRStateMetrics != nil {
 		stateMetricsRecorder := statemetrics.NewMRStateRecorder(
-			mgr.GetClient(), o.Logger, o.MetricOptions.MRStateMetrics, &v1alpha1.NetworkList{}, o.MetricOptions.PollStateMetricInterval,
+			mgr.GetClient(), o.Logger, o.MetricOptions.MRStateMetrics, &v1alpha1.InstanceList{}, o.MetricOptions.PollStateMetricInterval,
 		)
 		if err := mgr.Add(stateMetricsRecorder); err != nil {
-			return errors.Wrap(err, "cannot register MR state metrics recorder for kind v1alpha1.NetworkList")
+			return errors.Wrap(err, "cannot register MR state metrics recorder for kind v1alpha1.InstanceList")
 		}
 	}
 
-	r := managed.NewReconciler(mgr, resource.ManagedKind(v1alpha1.NetworkGroupVersionKind), opts...)
+	r := managed.NewReconciler(mgr, resource.ManagedKind(v1alpha1.InstanceGroupVersionKind), opts...)
 
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(name).
 		WithOptions(o.ForControllerRuntime()).
 		WithEventFilter(resource.DesiredStateChanged()).
-		For(&v1alpha1.Network{}).
+		For(&v1alpha1.Instance{}).
 		Complete(ratelimiter.NewReconciler(name, r, o.GlobalRateLimiter))
 }
 
@@ -193,9 +193,9 @@ type connector struct {
 // 3. Getting the credentials specified by the ProviderConfig.
 // 4. Using the credentials to form a client.
 func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.ExternalClient, error) {
-	cr, ok := mg.(*v1alpha1.Network)
+	cr, ok := mg.(*v1alpha1.Instance)
 	if !ok {
-		return nil, errors.New(errNotNetwork)
+		return nil, errors.New(errNotInstance)
 	}
 
 	if err := c.usage.Track(ctx, mg); err != nil {
@@ -230,20 +230,22 @@ type external struct {
 }
 
 func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
-	cr, ok := mg.(*v1alpha1.Network)
+	cr, ok := mg.(*v1alpha1.Instance)
 	if !ok {
-		return managed.ExternalObservation{}, errors.New(errNotNetwork)
+		return managed.ExternalObservation{}, errors.New(errNotInstance)
 	}
 
-	networkID := meta.GetExternalName(cr)
-	if networkID == "" {
+	serverID := meta.GetExternalName(cr)
+	if serverID == "" {
 		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
+
+	fmt.Printf("KJDNASJDNSAJKDNSKAJN: %+v", serverID)
 
 	request, err := http.NewRequestWithContext(
 		ctx,
 		"GET",
-		c.service.BaseURL+"/v2.0/networks/"+networkID,
+		c.service.BaseURL+"/v2.1/servers/"+serverID,
 		nil,
 	)
 	if err != nil {
@@ -269,14 +271,21 @@ func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 }
 
 func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.ExternalCreation, error) {
-	cr, ok := mg.(*v1alpha1.Network)
+	cr, ok := mg.(*v1alpha1.Instance)
 	if !ok {
-		return managed.ExternalCreation{}, errors.New(errNotNetwork)
+		return managed.ExternalCreation{}, errors.New(errNotInstance)
 	}
 
 	requestBodyJson := map[string]interface{}{
-		"network": map[string]interface{}{
-			"name": cr.Spec.ForProvider.Name,
+		"server": map[string]interface{}{
+			"name":       cr.Spec.ForProvider.Name,
+			"flavourRef": cr.Spec.ForProvider.FlavorRef,
+			"imageRef":   cr.Spec.ForProvider.ImageRef,
+			"networks": []interface{}{
+				map[string]interface{}{
+					"uuid": cr.Spec.ForProvider.Networks[0].Uuid,
+				},
+			},
 		},
 	}
 
@@ -284,7 +293,7 @@ func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 	request, err := http.NewRequestWithContext(
 		ctx,
 		"POST",
-		c.service.BaseURL+"/v2.0/networks",
+		c.service.BaseURL+"/v2.1/servers",
 		bytes.NewReader(requestBody),
 	)
 	if err != nil {
@@ -299,25 +308,27 @@ func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 		return managed.ExternalCreation{}, err
 	}
 
+	fmt.Printf("DJASPDMJSPA: %+v", response)
+
 	defer response.Body.Close()
 
 	var result struct {
-		Network struct {
+		Server struct {
 			ID string `json:"id"`
-		} `json:"network"`
+		} `json:"server"`
 	}
 	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
 		return managed.ExternalCreation{}, err
 	}
 
-	meta.SetExternalName(cr, result.Network.ID)
+	meta.SetExternalName(cr, result.Server.ID)
 	return managed.ExternalCreation{}, nil
 }
 
 func (c *external) Update(ctx context.Context, mg resource.Managed) (managed.ExternalUpdate, error) {
-	cr, ok := mg.(*v1alpha1.Network)
+	cr, ok := mg.(*v1alpha1.Instance)
 	if !ok {
-		return managed.ExternalUpdate{}, errors.New(errNotNetwork)
+		return managed.ExternalUpdate{}, errors.New(errNotInstance)
 	}
 
 	fmt.Printf("Updating: %+v", cr)
@@ -330,29 +341,13 @@ func (c *external) Update(ctx context.Context, mg resource.Managed) (managed.Ext
 }
 
 func (c *external) Delete(ctx context.Context, mg resource.Managed) (managed.ExternalDelete, error) {
-	cr, ok := mg.(*v1alpha1.Network)
+	cr, ok := mg.(*v1alpha1.Instance)
 	if !ok {
-		return managed.ExternalDelete{}, errors.New(errNotNetwork)
+		return managed.ExternalDelete{}, errors.New(errNotInstance)
 	}
 
-	networkID := meta.GetExternalName(cr)
-	if networkID == "" {
-		return managed.ExternalDelete{}, nil
-	}
+	fmt.Printf("Deleting: %+v", cr)
 
-	request, err := http.NewRequestWithContext(
-		ctx,
-		"DELETE",
-		c.service.BaseURL+"/v2.0/networks/"+networkID,
-		nil,
-	)
-	if err != nil {
-		return managed.ExternalDelete{}, err
-	}
-
-	request.Header.Set("X-Auth-Token", c.service.Token)
-
-	c.service.Client.Do(request)
 	return managed.ExternalDelete{}, nil
 }
 
