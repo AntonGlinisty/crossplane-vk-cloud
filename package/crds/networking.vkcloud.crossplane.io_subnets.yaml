@@ -74,7 +74,15 @@ spec:
                 properties:
                   allocationPools:
                     items:
-                      type: string
+                      properties:
+                        end:
+                          type: string
+                        start:
+                          type: string
+                      required:
+                      - end
+                      - start
+                      type: object
                     type: array
                   cidr:
                     type: string
@@ -90,7 +98,15 @@ spec:
                     type: string
                   hostRoutes:
                     items:
-                      type: string
+                      properties:
+                        destination:
+                          type: string
+                        nexthop:
+                          type: string
+                      required:
+                      - destination
+                      - nexthop
+                      type: object
                     type: array
                   ipVersion:
                     type: integer

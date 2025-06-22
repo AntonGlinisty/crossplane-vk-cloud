@@ -25,19 +25,29 @@ import (
 	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 )
 
+type AllocationPool struct {
+	Start string `json:"start"`
+	End   string `json:"end"`
+}
+
+type HostRoute struct {
+	Destination string `json:"destination"`
+	Nexthop     string `json:"nexthop"`
+}
+
 type SubnetParameters struct {
-	TenantId        string   `json:"tenantId,omitempty"`
-	ProjectId       string   `json:"projectId,omitempty"`
-	Name            string   `json:"name,omitempty"`
-	EnableDhcp      *bool    `json:"enableDhcp,omitempty"`
-	NetworkId       string   `json:"networkId"`
-	DnsNameservers  []string `json:"dnsNameservers,omitempty"`
-	AllocationPools []string `json:"allocationPools,omitempty"`
-	HostRoutes      []string `json:"hostRoutes,omitempty"`
-	IpVersion       int      `json:"ipVersion"`
-	GatewayIp       string   `json:"gatewayIp,omitempty"`
-	Cidr            string   `json:"cidr"`
-	Description     string   `json:"description,omitempty"`
+	TenantId        string           `json:"tenantId,omitempty"`
+	ProjectId       string           `json:"projectId,omitempty"`
+	Name            string           `json:"name,omitempty"`
+	EnableDhcp      *bool            `json:"enableDhcp,omitempty"`
+	NetworkId       string           `json:"networkId"`
+	DnsNameservers  []string         `json:"dnsNameservers,omitempty"`
+	AllocationPools []AllocationPool `json:"allocationPools,omitempty"`
+	HostRoutes      []HostRoute      `json:"hostRoutes,omitempty"`
+	IpVersion       int              `json:"ipVersion"`
+	GatewayIp       string           `json:"gatewayIp,omitempty"`
+	Cidr            string           `json:"cidr"`
+	Description     string           `json:"description,omitempty"`
 }
 
 // SubnetObservation are the observable fields of a Subnet.
