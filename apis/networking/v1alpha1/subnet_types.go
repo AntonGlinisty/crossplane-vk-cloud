@@ -25,14 +25,6 @@ import (
 	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 )
 
-// SubnetParameters are the configurable fields of a Subnet.
-type SubnetParameters struct {
-	Name       string `json:"name"`
-	NetworkId  string `json:"networkId"`
-	Cidr       string `json:"cidr"`
-	EnableDhcp bool   `json:"enableDhcp"`
-}
-
 type SubnetParameters struct {
 	TenantId        string        `json:"tenantId,omitempty"`
 	ProjectId       string        `json:"projectId,omitempty"`
