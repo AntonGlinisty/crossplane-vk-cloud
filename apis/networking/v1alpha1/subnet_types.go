@@ -26,18 +26,18 @@ import (
 )
 
 type SubnetParameters struct {
-	TenantId        string        `json:"tenantId,omitempty"`
-	ProjectId       string        `json:"projectId,omitempty"`
-	Name            string        `json:"name,omitempty"`
-	EnableDhcp      *bool         `json:"enableDhcp,omitempty"`
-	NetworkId       string        `json:"networkId"`
-	DnsNameservers  []string      `json:"dnsNameservers,omitempty"`
-	AllocationPools []interface{} `json:"allocationPools,omitempty"`
-	HostRoutes      []interface{} `json:"hostRoutes,omitempty"`
-	IpVersion       int           `json:"ipVersion"`
-	GatewayIp       string        `json:"gatewayIp,omitempty"`
-	Cidr            string        `json:"cidr"`
-	Description     string        `json:"description,omitempty"`
+	TenantId        string   `json:"tenantId,omitempty"`
+	ProjectId       string   `json:"projectId,omitempty"`
+	Name            string   `json:"name,omitempty"`
+	EnableDhcp      *bool    `json:"enableDhcp,omitempty"`
+	NetworkId       string   `json:"networkId"`
+	DnsNameservers  []string `json:"dnsNameservers,omitempty"`
+	AllocationPools []string `json:"allocationPools,omitempty"`
+	HostRoutes      []string `json:"hostRoutes,omitempty"`
+	IpVersion       int      `json:"ipVersion"`
+	GatewayIp       string   `json:"gatewayIp,omitempty"`
+	Cidr            string   `json:"cidr"`
+	Description     string   `json:"description,omitempty"`
 }
 
 // SubnetObservation are the observable fields of a Subnet.

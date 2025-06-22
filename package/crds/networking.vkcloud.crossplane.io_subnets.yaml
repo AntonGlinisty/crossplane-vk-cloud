@@ -71,20 +71,40 @@ spec:
                 - Delete
                 type: string
               forProvider:
-                description: SubnetParameters are the configurable fields of a Subnet.
                 properties:
+                  allocationPools:
+                    items:
+                      type: string
+                    type: array
                   cidr:
                     type: string
+                  description:
+                    type: string
+                  dnsNameservers:
+                    items:
+                      type: string
+                    type: array
                   enableDhcp:
                     type: boolean
+                  gatewayIp:
+                    type: string
+                  hostRoutes:
+                    items:
+                      type: string
+                    type: array
+                  ipVersion:
+                    type: integer
                   name:
                     type: string
                   networkId:
                     type: string
+                  projectId:
+                    type: string
+                  tenantId:
+                    type: string
                 required:
                 - cidr
-                - enableDhcp
-                - name
+                - ipVersion
                 - networkId
                 type: object
               managementPolicies:
